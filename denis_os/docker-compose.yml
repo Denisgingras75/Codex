@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  denis_os:
+    build: .
+    container_name: denis_os
+    ports:
+      - "8501:8501"
+    volumes:
+      # Maps your current folder to /app inside the container
+      - ./:/app
+    restart: unless-stopped
