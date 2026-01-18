@@ -10,7 +10,7 @@ from typing import Any
 DEFAULT_CONFIG = {
     "app": {
         "name": "DenisOS",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "theme": "notebook"
     },
     "user": {

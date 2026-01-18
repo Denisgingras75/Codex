@@ -5,8 +5,6 @@ Uses Claude for brutally honest feedback, idea critique, and research.
 
 import streamlit as st
 from datetime import datetime
-import json
-from pathlib import Path
 
 try:
     import anthropic
@@ -15,7 +13,7 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 from utils.data_manager import load_data, save_data
-from utils.config import get_config_value
+from utils.config import get_config_value, set_config_value
 
 
 SYSTEM_PROMPT = """You are the Codex - Denis's personal AI advisor living inside his digital notebook.
@@ -45,7 +43,41 @@ You are not a yes-man. You are a trusted advisor who cares enough to tell hard t
 
 When asked to research something, provide factual information with caveats about what you're uncertain about. Cite general sources when relevant (e.g., "According to standard financial advice..." or "Stoic philosophers like Marcus Aurelius argued...").
 
-Start conversations with: "What's on your mind, Denis?" or similar. No flowery greetings."""
+Start conversations naturally. No flowery greetings."""
+
+
+CUSTOM_CSS = """
+<style>
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .mode-selector {
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .codex-header {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    .api-setup-box {
+        background: rgba(251, 191, 36, 0.1);
+        border: 1px solid rgba(251, 191, 36, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+</style>
+"""
 
 
 def get_client():
@@ -83,7 +115,7 @@ def chat_with_codex(user_message: str, conversation_context: list) -> str:
     """Send message to Claude and get response."""
     client = get_client()
     if not client:
-        return "API key not configured. Go to Settings to add your Anthropic API key."
+        return "⚠️ API key not configured. Go to **Settings** to add your Anthropic API key."
 
     # Build messages for API
     messages = []
@@ -98,131 +130,202 @@ def chat_with_codex(user_message: str, conversation_context: list) -> str:
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500,
+            max_tokens=2000,
             system=SYSTEM_PROMPT,
             messages=messages
         )
         return response.content[0].text
+    except anthropic.AuthenticationError:
+        return "⚠️ Invalid API key. Please check your key in **Settings**."
+    except anthropic.RateLimitError:
+        return "⚠️ Rate limit exceeded. Please wait a moment and try again."
     except anthropic.APIError as e:
-        return f"API Error: {str(e)}"
+        return f"⚠️ API Error: {str(e)}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"⚠️ Error: {str(e)}"
 
 
 def render():
     """Render the Codex Advisor page."""
-    st.header("📓 The Codex")
-    st.caption("Your brutally honest AI advisor")
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+    st.markdown('<h1 class="codex-header">🤖 The Codex</h1>', unsafe_allow_html=True)
+    st.caption("Your brutally honest AI advisor • Powered by Claude")
 
     # API Key check
     if not ANTHROPIC_AVAILABLE:
-        st.error("Anthropic library not installed. Run: pip install anthropic")
+        st.error("⚠️ Anthropic library not installed. This shouldn't happen in Docker.")
         return
 
     api_key = st.session_state.get("anthropic_api_key") or get_config_value("api.anthropic_key")
 
     if not api_key:
-        st.warning("No API key configured")
-        with st.expander("Configure API Key"):
-            new_key = st.text_input("Anthropic API Key", type="password",
-                                     help="Get your key at console.anthropic.com")
-            if st.button("Save Key"):
-                st.session_state.anthropic_api_key = new_key
-                st.success("Key saved for this session!")
-                st.rerun()
-        st.info("Get an API key at [console.anthropic.com](https://console.anthropic.com)")
+        st.markdown("""
+        <div class="api-setup-box">
+            <h3>🔑 Setup Required</h3>
+            <p>To use the Codex, you need an Anthropic API key.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        new_key = st.text_input(
+            "Anthropic API Key",
+            type="password",
+            placeholder="sk-ant-api03-...",
+            help="Get your key at console.anthropic.com"
+        )
+
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            if st.button("🔑 Save & Start", type="primary"):
+                if new_key:
+                    set_config_value("api.anthropic_key", new_key)
+                    st.session_state.anthropic_api_key = new_key
+                    st.success("API key saved!")
+                    st.rerun()
+                else:
+                    st.error("Please enter an API key")
+
+        st.markdown("---")
+        st.info("🔗 [Get an API key at console.anthropic.com](https://console.anthropic.com)")
         return
 
-    # Conversation modes
+    # Mode selector
+    st.markdown("---")
+
+    mode_icons = {
+        "Chat": "💬",
+        "Critique My Idea": "🎯",
+        "Research": "🔍",
+        "Decision Help": "⚖️"
+    }
+
     mode = st.radio(
         "Mode",
-        ["Chat", "Critique My Idea", "Research", "Decision Help"],
-        horizontal=True
+        list(mode_icons.keys()),
+        horizontal=True,
+        format_func=lambda x: f"{mode_icons[x]} {x}"
     )
+
+    # Mode descriptions
+    mode_hints = {
+        "Chat": "Free conversation - ask anything",
+        "Critique My Idea": "Get brutal, honest feedback on your ideas",
+        "Research": "Get factual information with sources",
+        "Decision Help": "Work through tough decisions together"
+    }
+    st.caption(mode_hints[mode])
 
     st.markdown("---")
 
-    # Chat interface
+    # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
         history = get_conversation_history()
         if history:
             st.session_state.messages = [
                 {"role": m["role"], "content": m["content"]}
-                for m in history[-10:]
+                for m in history[-20:]
             ]
 
     # Display chat history
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"], avatar="🧑‍💻" if message["role"] == "user" else "📓"):
+                st.markdown(message["content"])
 
-    # Mode-specific prompts
+    # Mode-specific placeholders
     placeholder_text = {
         "Chat": "What's on your mind?",
         "Critique My Idea": "Describe your idea - I'll give you honest feedback...",
         "Research": "What do you want me to research?",
-        "Decision Help": "What decision are you facing? What are your options?"
+        "Decision Help": "What decision are you facing?"
     }
 
     # Chat input
     if prompt := st.chat_input(placeholder_text.get(mode, "Type here...")):
         # Add mode context to prompt
         if mode == "Critique My Idea":
-            full_prompt = f"[IDEA CRITIQUE REQUEST]\n\nHere's my idea:\n{prompt}\n\nGive me your honest assessment. What's wrong with it? What could make it better? Don't hold back."
+            full_prompt = f"""[IDEA CRITIQUE REQUEST]
+
+Here's my idea:
+{prompt}
+
+Give me your honest assessment:
+1. What's wrong with it? Be specific.
+2. What's the biggest risk I'm not seeing?
+3. What would make it better?
+4. Should I pursue this or not?
+
+Don't hold back."""
+
         elif mode == "Research":
-            full_prompt = f"[RESEARCH REQUEST]\n\nTopic: {prompt}\n\nGive me a factual overview. Include what's well-established vs uncertain. Cite sources where relevant."
+            full_prompt = f"""[RESEARCH REQUEST]
+
+Topic: {prompt}
+
+Provide:
+1. A factual overview
+2. Key points I should know
+3. What's well-established vs. uncertain
+4. Relevant sources or where to learn more
+5. Practical implications for me"""
+
         elif mode == "Decision Help":
-            full_prompt = f"[DECISION HELP]\n\nHere's my situation:\n{prompt}\n\nHelp me think through this. Ask me hard questions. Point out what I might be missing."
+            full_prompt = f"""[DECISION HELP]
+
+Here's my situation:
+{prompt}
+
+Help me think through this:
+1. What are the key factors I should consider?
+2. What am I probably not seeing?
+3. What questions should I be asking myself?
+4. What would you do in my position and why?"""
+
         else:
             full_prompt = prompt
 
         # Display user message
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="🧑‍💻"):
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
         save_message("user", prompt)
 
         # Get response
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="📓"):
             with st.spinner("Thinking..."):
                 response = chat_with_codex(full_prompt, st.session_state.messages[:-1])
             st.markdown(response)
 
         st.session_state.messages.append({"role": "assistant", "content": response})
         save_message("assistant", response)
+        st.rerun()
 
     # Sidebar actions
     with st.sidebar:
         st.markdown("---")
         st.markdown("**Codex Actions**")
 
-        if st.button("Clear Conversation"):
+        if st.button("🗑️ Clear Chat", use_container_width=True):
             st.session_state.messages = []
             data = load_data()
             data["codex_conversations"] = []
             save_data(data)
             st.rerun()
 
-        if st.button("Export Chat"):
-            chat_export = "\n\n".join([
-                f"**{m['role'].upper()}**: {m['content']}"
+        if st.session_state.messages:
+            chat_export = "\n\n---\n\n".join([
+                f"**{'You' if m['role'] == 'user' else 'Codex'}:**\n{m['content']}"
                 for m in st.session_state.messages
             ])
             st.download_button(
-                "Download",
+                "📥 Export Chat",
                 chat_export,
-                file_name=f"codex_chat_{datetime.now().strftime('%Y%m%d')}.md",
-                mime="text/markdown"
+                file_name=f"codex_chat_{datetime.now().strftime('%Y%m%d_%H%M')}.md",
+                mime="text/markdown",
+                use_container_width=True
             )
 
-
-def render_quick_ask():
-    """Render a quick-ask widget for other pages."""
-    with st.expander("💬 Quick Ask Codex"):
-        quick_q = st.text_input("Quick question", key="quick_codex")
-        if st.button("Ask", key="quick_ask_btn"):
-            if quick_q:
-                with st.spinner("..."):
-                    response = chat_with_codex(quick_q, [])
-                st.markdown(response)
+        st.markdown("---")
+        st.caption(f"💬 {len(st.session_state.messages)} messages")
