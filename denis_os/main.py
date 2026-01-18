@@ -19,12 +19,15 @@ st.set_page_config(
     page_title="DenisOS",
     page_icon="📓",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # Better for mobile - swipe to open
 )
 
-# Custom CSS for polished dark theme
+# Custom CSS for polished dark theme + mobile responsive
 CUSTOM_CSS = """
 <style>
+    /* Mobile viewport */
+    @viewport { width: device-width; initial-scale: 1; }
+
     /* Main theme colors */
     :root {
         --accent: #6366f1;
@@ -33,6 +36,18 @@ CUSTOM_CSS = """
         --warning: #f59e0b;
         --danger: #ef4444;
         --text-muted: #9ca3af;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .main-title { font-size: 1.5rem !important; }
+        .section-header { font-size: 1rem !important; }
+        .codex-quote { padding: 0.75rem !important; font-size: 0.85rem !important; margin: 1rem 0 !important; }
+        .activity-item { padding: 0.5rem !important; font-size: 0.9rem !important; }
+        [data-testid="stMetric"] label { font-size: 0.7rem !important; }
+        [data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+        .stButton > button { padding: 0.5rem 1rem !important; font-size: 0.85rem !important; }
+        section[data-testid="stSidebar"] { width: 85vw !important; max-width: 300px; }
     }
 
     /* Header styling */
