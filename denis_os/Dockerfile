@@ -20,8 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Expose the Streamlit port
-EXPOSE 8501
+# Default port (Railway will override with $PORT)
+ENV PORT=8501
+EXPOSE $PORT
 
-# Command to run the app
-CMD ["streamlit", "run", "main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Command to run the app (uses shell form to expand $PORT)
+CMD streamlit run main.py --server.port=$PORT --server.address=0.0.0.0
