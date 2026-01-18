@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python39"]
+
+[phases.install]
+cmds = ["cd denis_os && pip install -r requirements.txt"]
+
+[start]
+cmd = "cd denis_os && streamlit run main.py --server.port=${PORT:-8501} --server.address=0.0.0.0"

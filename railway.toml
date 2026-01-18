@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "denis_os/Dockerfile"
+
+[deploy]
+startCommand = "cd denis_os && streamlit run main.py --server.port=$PORT --server.address=0.0.0.0"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

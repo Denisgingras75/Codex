@@ -10,7 +10,7 @@ from typing import Any
 DEFAULT_CONFIG = {
     "app": {
         "name": "DenisOS",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "theme": "notebook"
     },
     "user": {
@@ -18,6 +18,9 @@ DEFAULT_CONFIG = {
         "timezone": "America/Toronto",
         "currency": "CAD",
         "units": "imperial"
+    },
+    "api": {
+        "anthropic_key": ""
     },
     "modules": {
         "finance": {"enabled": True, "default_currency": "CAD"},
