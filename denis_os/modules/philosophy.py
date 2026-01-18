@@ -1,11 +1,12 @@
 """
 Philosophy & Reflection Module for DenisOS
-Your digital journal and thinking companion - like Tom Riddle's diary, but it helps you grow
+Your digital journal and thinking companion
 """
 
 import streamlit as st
 from datetime import datetime
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -23,222 +24,257 @@ REFLECTION_PROMPTS = {
         "What would you tell a friend facing your current situation?",
         "What obstacle can you view as an opportunity?",
         "What are you grateful for that you usually take for granted?",
-        "How can you practice virtue in your work today?",
-        "What fear is holding you back, and is it rational?",
-        "If this were your last day, how would you spend it?",
     ],
     "practical": [
         "What's the ONE thing that would make today a success?",
         "What task have you been avoiding, and why?",
         "What did you learn from your last mistake?",
-        "How can you help someone else today?",
         "What skill do you want to improve this week?",
-        "What's draining your energy that you could eliminate?",
-        "What would you attempt if you knew you couldn't fail?",
-        "What's the best use of your time right now?",
     ],
     "craft": [
         "What does mastery look like in your current project?",
         "What technique could you practice to improve?",
         "Who do you admire in your craft, and why?",
-        "What's the difference between good enough and excellent?",
         "What would you build if resources weren't a constraint?",
-        "What have your hands taught you that your mind couldn't?",
-        "How does your work serve others?",
-        "What tradition in your craft is worth preserving?",
     ],
     "growth": [
         "What belief have you changed your mind about recently?",
-        "What's uncomfortable that you should lean into?",
         "How are you different from a year ago?",
         "What would your future self thank you for doing today?",
-        "What's a small habit that could compound over time?",
         "Where are you playing it too safe?",
-        "What conversation are you avoiding?",
-        "What does 'enough' look like for you?",
     ]
 }
 
-MOODS = ["😊 Great", "🙂 Good", "😐 Okay", "😔 Low", "😤 Frustrated", "🤔 Thoughtful", "💪 Motivated"]
+MOODS = ["Great", "Good", "Okay", "Low", "Frustrated", "Thoughtful", "Motivated", "Anxious", "Grateful"]
+MOOD_ICONS = {
+    "Great": "😊", "Good": "🙂", "Okay": "😐", "Low": "😔",
+    "Frustrated": "😤", "Thoughtful": "🤔", "Motivated": "💪",
+    "Anxious": "😰", "Grateful": "🙏"
+}
 
 
 def render():
     """Render the philosophy module UI."""
-    st.header("📖 Journal & Reflections")
+    st.markdown("## 📖 Journal & Reflections")
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Write", "Daily Prompt", "Past Entries", "Wisdom"
-    ])
+    # Quick action buttons at top
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📝 New Entry", type="primary", use_container_width=True):
+            st.session_state.journal_mode = "write"
+    with col2:
+        if st.button("💭 Prompt", use_container_width=True):
+            st.session_state.journal_mode = "prompt"
+    with col3:
+        if st.button("📚 History", use_container_width=True):
+            st.session_state.journal_mode = "history"
 
-    with tab1:
+    st.markdown("---")
+
+    if "journal_mode" not in st.session_state:
+        st.session_state.journal_mode = "write"
+
+    mode = st.session_state.journal_mode
+
+    if mode == "write":
         _render_journal()
-
-    with tab2:
+    elif mode == "prompt":
         _render_daily_prompt()
-
-    with tab3:
+    elif mode == "history":
         _render_past_entries()
-
-    with tab4:
-        _render_wisdom()
 
 
 def _render_journal():
     """Free-form journal entry."""
-    st.subheader("What's on your mind?")
+    st.markdown("### What's on your mind?")
 
-    col1, col2 = st.columns([3, 1])
+    title = st.text_input(
+        "Title (optional)",
+        placeholder="Give this entry a name...",
+        key="journal_title"
+    )
 
-    with col2:
-        mood = st.selectbox("Current Mood", MOODS)
-        tags_input = st.text_input("Tags", placeholder="work, family, goals")
+    entry_text = st.text_area(
+        "Write freely...",
+        height=250,
+        placeholder="This is your space. Write whatever comes to mind.\n\nTip: Use #tags inline (e.g., #work #idea)",
+        key="journal_entry"
+    )
+
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        entry_text = st.text_area(
-            "Write freely...",
-            height=200,
-            placeholder="This is your space. Write whatever comes to mind. "
-                       "No one else will read this unless you share it.",
-            key="journal_entry"
+        mood = st.selectbox(
+            "Mood",
+            options=MOODS,
+            format_func=lambda x: f"{MOOD_ICONS.get(x, '📝')} {x}"
+        )
+
+    with col2:
+        tags_input = st.text_input(
+            "Tags",
+            placeholder="work, project, idea"
+        )
+
+    with col3:
+        link_to_codex = st.checkbox(
+            "🤖 Link to Codex",
+            help="Let the AI reference this entry"
         )
 
     col1, col2 = st.columns([1, 3])
     with col1:
-        if st.button("Save Entry", type="primary", disabled=not entry_text.strip()):
-            tags = [t.strip() for t in tags_input.split(",") if t.strip()]
-            entry_id = add_journal_entry(
+        if st.button("💾 Save", type="primary", disabled=not entry_text.strip()):
+            inline_tags = re.findall(r'#(\w+)', entry_text)
+            manual_tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+            all_tags = list(set(inline_tags + manual_tags))
+            if link_to_codex:
+                all_tags.append("codex-linked")
+
+            add_journal_entry(
                 content=entry_text,
-                mood=mood.split()[1] if mood else None,
-                tags=tags
+                mood=mood,
+                tags=all_tags,
+                title=title if title else None
             )
-            st.success("Entry saved to your codex")
+            st.success("Saved!")
             st.balloons()
 
     with col2:
-        st.caption("Your entries are stored locally and never shared")
+        st.caption("Stored locally, never shared")
 
 
 def _render_daily_prompt():
     """Daily reflection prompt."""
-    st.subheader("Daily Reflection")
+    st.markdown("### Daily Reflection")
 
     category = st.selectbox(
-        "Choose a theme",
+        "Theme",
         options=list(REFLECTION_PROMPTS.keys()),
         format_func=lambda x: x.title()
     )
 
-    if "current_prompt" not in st.session_state:
+    if "current_prompt" not in st.session_state or st.session_state.get("prompt_cat") != category:
         st.session_state.current_prompt = random.choice(REFLECTION_PROMPTS[category])
+        st.session_state.prompt_cat = category
 
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.markdown(f"### *\"{st.session_state.current_prompt}\"*")
-    with col2:
-        if st.button("🔄 New"):
-            st.session_state.current_prompt = random.choice(REFLECTION_PROMPTS[category])
-            st.rerun()
+    st.markdown(f"""
+    <div style="background: rgba(99, 102, 241, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid #6366f1; margin: 1rem 0;">
+        <p style="font-size: 1.1rem; font-style: italic; margin: 0;">"{st.session_state.current_prompt}"</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("🔄 New Prompt"):
+        st.session_state.current_prompt = random.choice(REFLECTION_PROMPTS[category])
+        st.rerun()
 
     response = st.text_area(
         "Your reflection",
-        height=150,
-        placeholder="Take a moment to think before writing...",
+        height=180,
+        placeholder="Take a moment to think...",
         key="reflection_response"
     )
 
-    if st.button("Save Reflection", type="primary", disabled=not response.strip()):
+    link_to_codex = st.checkbox("🤖 Link to Codex", key="ref_codex")
+
+    if st.button("💾 Save Reflection", type="primary", disabled=not response.strip()):
+        tags = ["reflection", category]
+        if link_to_codex:
+            tags.append("codex-linked")
+
         add_reflection(
             prompt=st.session_state.current_prompt,
             response=response,
-            category=category
+            category=category,
+            tags=tags
         )
-        st.success("Reflection saved")
+        st.success("Saved!")
         st.session_state.current_prompt = random.choice(REFLECTION_PROMPTS[category])
         st.rerun()
 
 
 def _render_past_entries():
-    """View past journal entries and reflections."""
-    st.subheader("Your Codex")
-
-    entry_type = st.radio("View", ["Journal Entries", "Reflections"], horizontal=True)
+    """View past entries."""
+    st.markdown("### Your Codex History")
 
     data = load_data()
 
-    if entry_type == "Journal Entries":
-        entries = data.get("journal", [])
-        entries = sorted(entries, key=lambda x: x.get('created_at', ''), reverse=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        entry_type = st.selectbox("Type", ["Journal", "Reflections", "All"])
+    with col2:
+        all_tags = set()
+        for e in data.get("journal", []):
+            all_tags.update(e.get("tags", []))
+        for r in data.get("reflections", []):
+            all_tags.update(r.get("tags", []))
+        tag_filter = st.selectbox("Tag", ["All"] + sorted([t for t in all_tags if t != "codex-linked"]))
 
-        if not entries:
-            st.info("No journal entries yet. Start writing!")
-            return
+    st.markdown("---")
 
-        for entry in entries[:20]:
-            with st.expander(
-                f"{entry.get('mood', '📝')} {entry.get('created_at', 'Unknown')[:10]}"
-            ):
+    if entry_type in ["Journal", "All"]:
+        entries = sorted(data.get("journal", []), key=lambda x: x.get('created_at', ''), reverse=True)
+        if tag_filter != "All":
+            entries = [e for e in entries if tag_filter in e.get("tags", [])]
+
+        for entry in entries[:15]:
+            mood_icon = MOOD_ICONS.get(entry.get('mood', ''), '📝')
+            title = entry.get('title') or entry.get('content', '')[:40] + "..."
+            date = entry.get('created_at', '')[:10]
+            linked = "🤖" if "codex-linked" in entry.get("tags", []) else ""
+
+            with st.expander(f"{mood_icon} {title} — {date} {linked}"):
                 st.write(entry.get('content', ''))
-                if entry.get('tags'):
-                    st.caption(f"Tags: {', '.join(entry['tags'])}")
-
-                if st.button("Delete", key=f"del_j_{entry.get('id')}"):
+                tags = [f"`#{t}`" for t in entry.get("tags", []) if t != "codex-linked"]
+                if tags:
+                    st.markdown(" ".join(tags))
+                if st.button("🗑️", key=f"del_j_{entry.get('id')}"):
                     data["journal"] = [e for e in data["journal"] if e.get('id') != entry.get('id')]
                     save_data(data)
                     st.rerun()
 
-    else:
-        reflections = data.get("reflections", [])
-        reflections = sorted(reflections, key=lambda x: x.get('created_at', ''), reverse=True)
+    if entry_type in ["Reflections", "All"]:
+        refs = sorted(data.get("reflections", []), key=lambda x: x.get('created_at', ''), reverse=True)
+        if tag_filter != "All":
+            refs = [r for r in refs if tag_filter in r.get("tags", [])]
 
-        if not reflections:
-            st.info("No reflections yet. Try a daily prompt!")
-            return
+        for ref in refs[:15]:
+            date = ref.get('created_at', '')[:10]
+            cat = ref.get('category', 'general').title()
+            linked = "🤖" if "codex-linked" in ref.get("tags", []) else ""
 
-        for ref in reflections[:20]:
-            with st.expander(f"💭 {ref.get('created_at', 'Unknown')[:10]} - {ref.get('category', 'general').title()}"):
-                st.markdown(f"**Prompt:** *{ref.get('prompt', '')}*")
+            with st.expander(f"💭 {cat} — {date} {linked}"):
+                st.markdown(f"*{ref.get('prompt', '')}*")
+                st.markdown("---")
                 st.write(ref.get('response', ''))
-
-                if st.button("Delete", key=f"del_r_{ref.get('id')}"):
+                if st.button("🗑️", key=f"del_r_{ref.get('id')}"):
                     data["reflections"] = [e for e in data["reflections"] if e.get('id') != ref.get('id')]
                     save_data(data)
                     st.rerun()
 
 
-def _render_wisdom():
-    """Curated quotes and wisdom."""
-    st.subheader("Collected Wisdom")
+def get_codex_linked_entries():
+    """Get all entries tagged for Codex access."""
+    data = load_data()
+    linked = []
 
-    wisdom = [
-        ("Marcus Aurelius", "You have power over your mind, not outside events. Realize this, and you will find strength."),
-        ("Seneca", "We suffer more often in imagination than in reality."),
-        ("Epictetus", "It's not what happens to you, but how you react to it that matters."),
-        ("Marcus Aurelius", "The object of life is not to be on the side of the majority, but to escape finding oneself in the ranks of the insane."),
-        ("Lao Tzu", "A journey of a thousand miles begins with a single step."),
-        ("Japanese Proverb", "Fall seven times, stand up eight."),
-        ("Bruce Lee", "Adapt what is useful, reject what is useless, and add what is specifically your own."),
-        ("Naval Ravikant", "Desire is a contract you make with yourself to be unhappy until you get what you want."),
-        ("Miyamoto Musashi", "There is nothing outside of yourself that can ever enable you to get better, stronger, richer, quicker, or smarter. Everything is within."),
-        ("Unknown Craftsman", "Measure twice, cut once."),
-        ("Frank Lloyd Wright", "You can use an eraser on the drafting table or a sledgehammer on the construction site."),
-        ("Abraham Lincoln", "Give me six hours to chop down a tree and I will spend the first four sharpening the axe."),
-    ]
+    for entry in data.get("journal", []):
+        if "codex-linked" in entry.get("tags", []):
+            linked.append({
+                "type": "journal",
+                "title": entry.get("title", "Untitled"),
+                "content": entry.get("content", ""),
+                "date": entry.get("created_at", ""),
+                "mood": entry.get("mood", "")
+            })
 
-    if st.button("Show Random Wisdom"):
-        author, quote = random.choice(wisdom)
-        st.session_state.current_wisdom = (author, quote)
+    for ref in data.get("reflections", []):
+        if "codex-linked" in ref.get("tags", []):
+            linked.append({
+                "type": "reflection",
+                "prompt": ref.get("prompt", ""),
+                "content": ref.get("response", ""),
+                "date": ref.get("created_at", "")
+            })
 
-    if "current_wisdom" in st.session_state:
-        author, quote = st.session_state.current_wisdom
-        st.markdown(f"""
-        > *"{quote}"*
-        >
-        > — **{author}**
-        """)
-
-    st.markdown("---")
-    st.markdown("**All Collected Wisdom**")
-
-    for author, quote in wisdom:
-        st.markdown(f"**{author}:** *\"{quote}\"*")
-        st.write("")
+    return sorted(linked, key=lambda x: x.get("date", ""), reverse=True)

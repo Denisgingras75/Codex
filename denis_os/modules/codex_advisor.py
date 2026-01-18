@@ -217,6 +217,26 @@ def render():
 
     st.markdown("---")
 
+    # Handle pending journal context
+    if st.session_state.get("pending_context"):
+        context = st.session_state.pending_context
+        st.info("📓 Journal entry loaded. Ask a question about it below.")
+
+        # Auto-send context
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        st.session_state.messages.append({"role": "user", "content": context})
+        save_message("user", context)
+
+        with st.spinner("Reading your journal..."):
+            response = chat_with_codex(context + "\n\nAcknowledge you've read this and ask me what I'd like to discuss about it.", st.session_state.messages[:-1])
+
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        save_message("assistant", response)
+        st.session_state.pending_context = None
+        st.rerun()
+
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -328,4 +348,64 @@ Help me think through this:
             )
 
         st.markdown("---")
+
+        # Linked journal entries
+        st.markdown("**📓 Linked Entries**")
+        linked = get_linked_entries()
+
+        if linked:
+            for entry in linked[:5]:
+                title = entry.get("title") or entry.get("content", "")[:30] + "..."
+                date = entry.get("date", "")[:10]
+                entry_type = "📝" if entry.get("type") == "journal" else "💭"
+
+                if st.button(f"{entry_type} {title[:20]}...", key=f"ref_{entry.get('date')}", use_container_width=True):
+                    # Add entry context to chat
+                    context = f"[REFERENCING MY JOURNAL ENTRY from {date}]\n\n"
+                    if entry.get("type") == "journal":
+                        context += f"Title: {entry.get('title', 'Untitled')}\n"
+                        context += f"Mood: {entry.get('mood', 'Unknown')}\n"
+                        context += f"Content: {entry.get('content', '')}\n\n"
+                    else:
+                        context += f"Reflection prompt: {entry.get('prompt', '')}\n"
+                        context += f"My response: {entry.get('content', '')}\n\n"
+
+                    context += "Please consider this context in our conversation."
+
+                    st.session_state.pending_context = context
+                    st.rerun()
+
+            st.caption(f"{len(linked)} linked entries")
+        else:
+            st.caption("No linked entries yet")
+            st.caption("Link entries in Journal with 🤖")
+
+        st.markdown("---")
         st.caption(f"💬 {len(st.session_state.messages)} messages")
+
+
+def get_linked_entries():
+    """Get journal entries linked to Codex."""
+    data = load_data()
+    linked = []
+
+    for entry in data.get("journal", []):
+        if "codex-linked" in entry.get("tags", []):
+            linked.append({
+                "type": "journal",
+                "title": entry.get("title"),
+                "content": entry.get("content", ""),
+                "date": entry.get("created_at", ""),
+                "mood": entry.get("mood", "")
+            })
+
+    for ref in data.get("reflections", []):
+        if "codex-linked" in ref.get("tags", []):
+            linked.append({
+                "type": "reflection",
+                "prompt": ref.get("prompt", ""),
+                "content": ref.get("response", ""),
+                "date": ref.get("created_at", "")
+            })
+
+    return sorted(linked, key=lambda x: x.get("date", ""), reverse=True)

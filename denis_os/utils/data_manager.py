@@ -132,23 +132,25 @@ def delete_entry(collection: str, entry_id: str) -> bool:
     return False
 
 
-def add_journal_entry(content: str, mood: Optional[str] = None, tags: Optional[List[str]] = None) -> str:
+def add_journal_entry(content: str, mood: Optional[str] = None, tags: Optional[List[str]] = None, title: Optional[str] = None) -> str:
     """Add a journal entry - talk to your codex."""
     entry = {
         "content": content,
         "mood": mood,
         "tags": tags or [],
+        "title": title,
         "type": "journal"
     }
     return add_entry("journal", entry)
 
 
-def add_reflection(prompt: str, response: str, category: str = "general") -> str:
+def add_reflection(prompt: str, response: str, category: str = "general", tags: Optional[List[str]] = None) -> str:
     """Add a philosophical reflection."""
     entry = {
         "prompt": prompt,
         "response": response,
-        "category": category
+        "category": category,
+        "tags": tags or []
     }
     return add_entry("reflections", entry)
 
