@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.config import load_config, get_config_value
 from utils.data_manager import load_data, get_stats
-from modules import finance, carpentry, philosophy
+from modules import finance, carpentry, philosophy, codex_advisor
 
 
 st.set_page_config(
@@ -47,7 +47,7 @@ def render_sidebar():
 
         page = st.radio(
             "Navigate",
-            options=["Home", "Finance", "Carpentry", "Philosophy", "Settings"],
+            options=["Home", "Codex", "Finance", "Carpentry", "Philosophy", "Settings"],
             label_visibility="collapsed"
         )
 
@@ -190,6 +190,21 @@ def render_settings():
 
     st.markdown("---")
 
+    st.subheader("Codex AI (Claude)")
+    api_key = config.get("api", {}).get("anthropic_key", "")
+    new_api_key = st.text_input(
+        "Anthropic API Key",
+        value=api_key,
+        type="password",
+        help="Get your key at console.anthropic.com"
+    )
+    if st.button("Save API Key"):
+        from utils.config import set_config_value
+        set_config_value("api.anthropic_key", new_api_key)
+        st.success("API key saved!")
+
+    st.markdown("---")
+
     st.subheader("About DenisOS")
     st.markdown("""
     **DenisOS** is your personal digital codex - a private space for tracking finances,
@@ -238,6 +253,8 @@ def main():
 
     if page == "Home":
         render_home()
+    elif page == "Codex":
+        codex_advisor.render()
     elif page == "Finance":
         finance.render()
     elif page == "Carpentry":
